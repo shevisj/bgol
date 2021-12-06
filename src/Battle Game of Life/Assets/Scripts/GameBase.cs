@@ -1,6 +1,8 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class GameBase : MonoBehaviour
 {
@@ -9,21 +11,28 @@ public class GameBase : MonoBehaviour
     public KeyCode[] left_controls = new KeyCode[4] {KeyCode.A, KeyCode.S, KeyCode.D, KeyCode.F};
     public KeyCode[] right_controls = new KeyCode[4] {KeyCode.J, KeyCode.K, KeyCode.L, KeyCode.Semicolon};
 
-    private int p_rows = 5;
-    private int p_columns = 5;
+    private int p_rows = 9;
+    private int p_columns = 10;
 
     public GameObject cellPrefab;
 
+    public Vector2[] victoryPoints = new Vector2[] {new Vector2(2, 4), new Vector2(1, 4)};
     private List<List<Vector3>> gridPoints = new List<List<Vector3>>();
     private List<List<GameObject>> cubeMap = new List<List<GameObject>>();
     private List<List<GridNode>> nodeMap = new List<List<GridNode>>();
+    private List<GridNode> goalNodes = new List<GridNode>();
     private Renderer r;
 
     [Range(0f, 3f)]
     public float stepDelaySeconds = 1f;
     private int cursor = 0;
+    public bool timeBased = false;
     public Vector4 start = new Vector4(0.2f, 0.2f, 1f, 1f);
     public Vector4 end = new Vector4(0.4f, 0.4f, 1f, 1f);
+
+    public bool gameOver = false;
+    private int stepCount = 0;
+    public Text stepCounter = null;
 
 
     private void GenerateGrid(bool renderGizmos=false) {
@@ -61,6 +70,7 @@ public class GameBase : MonoBehaviour
 
     private void DestryCubes() {
         nodeMap.Clear();
+        goalNodes.Clear();
         foreach (List<GameObject> row in cubeMap) {
             foreach (GameObject cube in row) {
                 GameObject.Destroy(cube);
@@ -77,11 +87,12 @@ public class GameBase : MonoBehaviour
             for (int j = 0; j < columns; ++j) {
                 cubeMap[i].Add(Instantiate(cellPrefab, gridPoints[i][j], Quaternion.identity, transform));
                 nodeMap[i].Add(cubeMap[i][j].GetComponent<GridNode>());
-                // Color
-                var cubeRenderer = cubeMap[i][j].GetComponent<Renderer>();
-                cubeRenderer.material.SetColor("_Color", Color.red);
-                // Deactivate
-                cubeMap[i][j].SetActive(false);
+                if (Array.IndexOf(victoryPoints, new Vector2(i, j)) > -1) {
+                    // Victory node is green and remains active
+                    nodeMap[i][j].goal = true;
+                    nodeMap[i][j].Recolor();
+                    goalNodes.Add(nodeMap[i][j]);
+                }
             }
         }
     }
@@ -147,20 +158,42 @@ public class GameBase : MonoBehaviour
         DestryCubes();
         SpawnCubes();
         ConnectGridNodes();
+        gameOver = false;
+        stepCount = 0;
     }
 
-    private void EvolveGrid() {
+    private void CalculateNextGridState() {
         // First, calculate next step for each node
         foreach (List<GridNode> row in nodeMap) {
             foreach (GridNode node in row) {
                 node.CalculateNextState();
             }
         }
+    }
+
+    private void TransitionGridToNextState() {
         // The execute the transition to the next step
         foreach (List<GridNode> row in nodeMap) {
             foreach (GridNode node in row) {
                 node.TransitionToNextState();
             }
+        }
+    }
+
+    private bool checkWin() {
+        foreach (GridNode goalNode in goalNodes) {
+            if (goalNode.state == NodeState.ACTIVE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void EvolveGrid() {
+        CalculateNextGridState();
+        TransitionGridToNextState();
+        if (checkWin()) {
+            gameOver = true;
         }
     }
 
@@ -170,19 +203,28 @@ public class GameBase : MonoBehaviour
     }
 
     private void FixedUpdate() {
-        ++cursor;
-        int cursorLimit = Mathf.RoundToInt(stepDelaySeconds * 50f);
-        float compPerc = (float)cursor / (float)cursorLimit;
-        Color newColor = Vector4.Lerp(start, end, compPerc);
-        r.material.SetColor("_Color", newColor);
-        if (cursor >= cursorLimit) {
-            EvolveGrid();
-            cursor = 0;
+        if (timeBased && !gameOver) {
+            ++cursor;
+            int cursorLimit = Mathf.RoundToInt(stepDelaySeconds * 50f);
+            float compPerc = (float)cursor / (float)cursorLimit;
+            Color newColor = Vector4.Lerp(start, end, compPerc);
+            r.material.SetColor("_Color", newColor);
+            if (cursor >= cursorLimit) {
+                EvolveGrid();
+                cursor = 0;
+                ++stepCount;
+            }
         }
     }
 
     private void Update() {
-         if (transform.hasChanged || p_rows != rows || p_columns != columns) {
+        if (Input.GetKeyDown(KeyCode.Space) && timeBased) {
+            ResetGrid();
+        }
+        if (gameOver) {
+            return;
+        }
+        if (transform.hasChanged || p_rows != rows || p_columns != columns) {
             ResetGrid();
             transform.hasChanged = false;
             p_rows = rows;
@@ -192,10 +234,12 @@ public class GameBase : MonoBehaviour
         for (int i = 0; i < left_controls.Length; ++i) {
             if (Input.GetKeyDown(left_controls[i]) || Input.GetKey(left_controls[i])) {
                 //Debug.Log("Left down: "+i.ToString());
-                cubeMap[i][0].SetActive(true);
+                nodeMap[i][0].Activate();
+                //CalculateNextGridState();
             } else if (Input.GetKeyUp(left_controls[i])) {
                 //Debug.Log("Left up: "+i.ToString());
-                cubeMap[i][0].SetActive(false);
+                nodeMap[i][0].Deactivate();
+                //CalculateNextGridState();
             }
         }
 
@@ -203,16 +247,29 @@ public class GameBase : MonoBehaviour
             int idx = cubeMap.Count - (right_controls.Length - i);
             if (Input.GetKeyDown(right_controls[i]) || Input.GetKey(right_controls[i])) {
                 //Debug.Log("Right down: "+idx.ToString());
-                cubeMap[idx][0].SetActive(true);
+                nodeMap[idx][0].Activate();
+                //CalculateNextGridState();
             } else if (Input.GetKeyUp(right_controls[i])) {
                 //Debug.Log("Right up: "+idx.ToString());
-                cubeMap[idx][0].SetActive(false);
+                nodeMap[idx][0].Deactivate();
+                //CalculateNextGridState();
             }
+        }
+
+        if (Input.GetKeyDown(KeyCode.Space) && !timeBased) {
+            EvolveGrid();
+            ++stepCount;
         }
     }
 
     private void OnDrawGizmos()
     {
         GenerateGrid(true);
+    }
+
+    void OnGUI() {
+        if (!(stepCounter is null)) {
+            stepCounter.text = "Steps: " + stepCount.ToString();
+        }
     }
 }
