@@ -4,15 +4,19 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+public enum GameState {
+    PREGAME,
+    ACTIVE,
+    LOSE,
+    WIN
+}
+
 public class GameBase : MonoBehaviour
 {
     public int rows = 9;
     public int columns = 10;
     public KeyCode[] left_controls = new KeyCode[4] {KeyCode.A, KeyCode.S, KeyCode.D, KeyCode.F};
     public KeyCode[] right_controls = new KeyCode[4] {KeyCode.J, KeyCode.K, KeyCode.L, KeyCode.Semicolon};
-
-    private int p_rows = 9;
-    private int p_columns = 10;
 
     public GameObject cellPrefab;
 
@@ -30,7 +34,7 @@ public class GameBase : MonoBehaviour
     public Vector4 start = new Vector4(0.2f, 0.2f, 1f, 1f);
     public Vector4 end = new Vector4(0.4f, 0.4f, 1f, 1f);
 
-    public bool gameOver = false;
+    public GameState state = GameState.PREGAME;
     private int stepCount = 0;
     public Text stepCounter = null;
 
@@ -108,11 +112,11 @@ public class GameBase : MonoBehaviour
                     downNode.up = node;
                 }
                 // Wrap down
-                if (j == 0) {
-                    GridNode downNode = nodeMap[i][nodeMap[i].Count - 1];
-                    node.down = downNode;
-                    downNode.up = node;
-                }
+                //if (j == 0) {
+                //    GridNode downNode = nodeMap[i][nodeMap[i].Count - 1];
+                //    node.down = downNode;
+                //    downNode.up = node;
+                //}
                 // down left
                 if (j > 0 && i > 0) {
                     GridNode downLeftNode = nodeMap[i - 1][j - 1];
@@ -158,8 +162,10 @@ public class GameBase : MonoBehaviour
         DestryCubes();
         SpawnCubes();
         ConnectGridNodes();
-        gameOver = false;
+        state = GameState.PREGAME;
         stepCount = 0;
+        cursor = 0;
+        r.material.SetColor("_Color", start);
     }
 
     private void CalculateNextGridState() {
@@ -193,7 +199,7 @@ public class GameBase : MonoBehaviour
         CalculateNextGridState();
         TransitionGridToNextState();
         if (checkWin()) {
-            gameOver = true;
+            state = GameState.WIN;
         }
     }
 
@@ -203,7 +209,7 @@ public class GameBase : MonoBehaviour
     }
 
     private void FixedUpdate() {
-        if (timeBased && !gameOver) {
+        if (timeBased && state == GameState.ACTIVE) {
             ++cursor;
             int cursorLimit = Mathf.RoundToInt(stepDelaySeconds * 50f);
             float compPerc = (float)cursor / (float)cursorLimit;
@@ -221,19 +227,14 @@ public class GameBase : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Space) && timeBased) {
             ResetGrid();
         }
-        if (gameOver) {
+        if (state == GameState.WIN || state == GameState.LOSE) {
             return;
-        }
-        if (transform.hasChanged || p_rows != rows || p_columns != columns) {
-            ResetGrid();
-            transform.hasChanged = false;
-            p_rows = rows;
-            p_columns = columns;
         }
         // Get user input
         for (int i = 0; i < left_controls.Length; ++i) {
             if (Input.GetKeyDown(left_controls[i]) || Input.GetKey(left_controls[i])) {
                 //Debug.Log("Left down: "+i.ToString());
+                state = GameState.ACTIVE;
                 nodeMap[i][0].Activate();
                 //CalculateNextGridState();
             } else if (Input.GetKeyUp(left_controls[i])) {
@@ -247,6 +248,7 @@ public class GameBase : MonoBehaviour
             int idx = cubeMap.Count - (right_controls.Length - i);
             if (Input.GetKeyDown(right_controls[i]) || Input.GetKey(right_controls[i])) {
                 //Debug.Log("Right down: "+idx.ToString());
+                state = GameState.ACTIVE;
                 nodeMap[idx][0].Activate();
                 //CalculateNextGridState();
             } else if (Input.GetKeyUp(right_controls[i])) {
@@ -257,6 +259,7 @@ public class GameBase : MonoBehaviour
         }
 
         if (Input.GetKeyDown(KeyCode.Space) && !timeBased) {
+            state = GameState.ACTIVE;
             EvolveGrid();
             ++stepCount;
         }
