@@ -1,5 +1,6 @@
 *.wasm filter=lfs diff=lfs merge=lfs -text
 src/Battle[[:space:]]Game[[:space:]]of[[:space:]]Life/Library/Il2cppBuildCache/WebGL/Native/build.bc filter=lfs diff=lfs merge=lfs -text
+src/Battle[[:space:]]Game[[:space:]]of[[:space:]]Life/Library/il2cpp_cache/linkresult_F53D4C1F52DB527A6929BDC1BC4331B4/build.bc filter=lfs diff=lfs merge=lfs -text
 /game/Battle Game of Life/Library/ArtifactDB filter=lfs diff=lfs merge=lfs -text
 /game/Battle Game of Life/Library/Artifacts/00/004d04e9ca86f273965b8bf7613e9ea9 filter=lfs diff=lfs merge=lfs -text
 /game/Battle Game of Life/Library/Artifacts/03/03b0303cdd97ed3ce3dc709402c025f7 filter=lfs diff=lfs merge=lfs -text
