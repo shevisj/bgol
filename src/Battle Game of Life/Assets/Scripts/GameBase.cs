@@ -224,6 +224,9 @@ public class GameBase : MonoBehaviour
     }
 
     private void Update() {
+        if (Input.GetKey("escape")) {
+            Application.Quit();
+        }
         if (Input.GetKeyDown(KeyCode.Space) && timeBased) {
             ResetGrid();
         }
